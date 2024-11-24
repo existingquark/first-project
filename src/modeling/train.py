@@ -3,11 +3,11 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 from modeling.model import KeypointModel
 from plots import plot_loss, plot_keypoints
-from src.dataset import CelebADataset  # Import your dataset from dataset.py
+from dataset import CelebADataset  # Import your dataset from dataset.py
 
 
 # Dataset loading
-def get_data_loader(image_dir, landmarks_file, batch_size=32):
+def get_data_loader(img_dir, landmarks_file, partition_file, batch_size=32):
     from torchvision import transforms
 
     transform = transforms.Compose(
@@ -16,9 +16,15 @@ def get_data_loader(image_dir, landmarks_file, batch_size=32):
             transforms.ToTensor(),
         ]
     )
+
+    # Pass the landmarks_file and partition_file to CelebADataset
     dataset = CelebADataset(
-        image_dir=image_dir, landmarks_file=landmarks_file, transform=transform
+        img_dir=img_dir,
+        landmarks_file=landmarks_file,  # Ensure you pass the landmarks file here
+        partition_file=partition_file,  # Make sure to pass partition file too
+        transform=transform,
     )
+
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
@@ -27,11 +33,20 @@ def train_model(
 ):
     model.train()
     epoch_losses = []
+    print(f"Train loader created with {len(train_loader)} batches.")
+    print(f"Testing batch 0:")
+    images, keypoints = train_loader.dataset[0]
+    print(f"Image shape: {images.shape}, Keypoints shape: {keypoints.shape}")
 
     for epoch in range(num_epochs):
         running_loss = 0.0
+        # Test fetching one sample from the train_loader
         for batch_idx, (images, keypoints) in enumerate(train_loader):
-            images, keypoints = images.to(device), keypoints.to(device)
+            if batch_idx == 0:  # Only test the first batch
+                print(f"Batch {batch_idx}:")
+                print(f"Images shape: {images.shape}")
+                print(f"Keypoints shape: {keypoints.shape}")
+                break
 
             optimizer.zero_grad()
 
@@ -90,11 +105,12 @@ def main():
     print(f"Using device: {device}")
 
     # Dataset paths
-    image_dir = "data/external/Img"  # Adjust to your actual path
+    img_dir = r"data/raw/img_align_celeba_png"  # Adjust to your actual path
     landmarks_file = "data/external/list_landmarks_align_celeba.txt"
+    partition_file = "data/external/list_eval_partition.txt"  # Add partition file here
 
     # Initialize data loader
-    train_loader = get_data_loader(image_dir, landmarks_file)
+    train_loader = get_data_loader(img_dir, landmarks_file, partition_file)
 
     # Model, loss function, and optimizer
     model = KeypointModel(num_landmarks=136).to(device)
