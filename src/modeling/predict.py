@@ -4,7 +4,7 @@ from PIL import Image
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from model.model import KeypointModel
+from modeling.model import KeypointModel
 from plots import plot_keypoints  # To visualize predictions
 
 

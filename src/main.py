@@ -1,23 +1,17 @@
 import torch
 from torch.utils.data import DataLoader
-import torchvision.transforms as transforms
-from torchvision import datasets
 import torch.optim as optim
-from modeling.model import KeypointModel  # Assuming correct folder name here
-from plots import plot_loss, plot_keypoints  # For visualization
-from PIL import Image
+from modeling.model import KeypointModel
+from plots import plot_loss, plot_keypoints
+from src.dataset import CelebADataset  # Import your custom dataset from dataset.py
+from torchvision import transforms
 import numpy as np
+from PIL import Image
 
 
 # Define a function to initialize the dataset and data loader
-def get_data_loader(data_path, batch_size=32):
-    transform = transforms.Compose(
-        [
-            transforms.Resize((128, 128)),
-            transforms.ToTensor(),
-        ]
-    )
-    dataset = datasets.ImageFolder(data_path, transform=transform)
+def get_data_loader(image_dir, landmarks_file, batch_size=32, transform=None):
+    dataset = CelebADataset(image_dir, landmarks_file, transform=transform)
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     return data_loader
 
@@ -25,8 +19,8 @@ def get_data_loader(data_path, batch_size=32):
 # Define a function to initialize the model
 def initialize_model(device):
     model = KeypointModel(
-        num_landmarks=68
-    )  # Adjust the number of landmarks based on your dataset
+        num_landmarks=136  # 68 landmarks with (x, y), so 136 keypoints
+    )
     model = model.to(device)
     return model
 
@@ -40,17 +34,16 @@ def train_model(
 
     for epoch in range(num_epochs):
         running_loss = 0.0
-        for batch_idx, (images, _) in enumerate(train_loader):
-            images = images.to(device)
+        for batch_idx, (images, keypoints) in enumerate(train_loader):
+            images, keypoints = images.to(device), keypoints.to(device)
 
             optimizer.zero_grad()
 
             # Forward pass
             outputs = model(images)
 
-            # Compute loss (using dummy labels for now, replace with actual keypoint labels)
-            labels = torch.zeros_like(outputs).to(device)  # Replace with actual labels
-            loss = criterion(outputs, labels)
+            # Compute loss
+            loss = criterion(outputs, keypoints)
 
             # Backward pass and optimize
             loss.backward()
@@ -60,10 +53,10 @@ def train_model(
 
         avg_loss = running_loss / len(train_loader)
         losses.append(avg_loss)
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}")
+        print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {avg_loss:.4f}")
 
         # Plot loss every epoch
-        plot_loss(losses, filename=f"loss_epoch_{epoch+1}.png")
+        plot_loss(losses, filename=f"loss_epoch_{epoch + 1}.png")
 
     return losses
 
@@ -107,15 +100,20 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
+    # Dataset paths
+    image_dir = "data/external/Img"  # Path to your images
+    landmarks_file = (
+        "data/external/list_landmarks_align_celeba.txt"  # Path to your landmarks file
+    )
+
     # Initialize data loader
-    data_path = "path_to_your_dataset"  # Replace with actual dataset path
     transform = transforms.Compose(
         [
             transforms.Resize((128, 128)),
             transforms.ToTensor(),
         ]
     )
-    train_loader = get_data_loader(data_path)
+    train_loader = get_data_loader(image_dir, landmarks_file, transform=transform)
 
     # Initialize model, loss function, and optimizer
     model = initialize_model(device)
